@@ -15,23 +15,8 @@ import streamlit as st
 import logging
 
 
-def generate_service_request(complaint):
+def generate_service_request_object(complaint):
     """Generate a service request from a complaint string."""
-
-    # A string template for the output format.
-    service_request_template = """
-    Service Request:
-
-    Location: {location}
-    Latitude: {latitude}
-    Longitude: {longitude}
-    Severity: {severity}
-    Category: {category}
-
-    Description: {description}
-
-    Note: If this is an emergency, please call 911. For reporting an abandoned vehicle or an illegally parked vehicle, please call the Syracuse Police Ordinance at 315-448-8650. For all non-emergencies and service requests, call (315) 448-CITY (2489). The category chosen for this request is {category}.
-    """
 
     # A list of request categories
     request_categories = [
@@ -188,19 +173,51 @@ def generate_service_request(complaint):
     logging.info(f"latitude: {latitude}")
     logging.info(f"longitude: {longitude}")
 
-    return service_request_template.format(
-        category=category,
-        severity=severity,
-        description=description,
-        location=location,
-        latitude=latitude,
-        longitude=longitude,
-    )
+    # Create a service request object
+    service_request_object = {
+        "category": category,
+        "severity": severity,
+        "description": description,
+        "location": location,
+        "latitude": latitude,
+        "longitude": longitude,
+    }
+
+    logging.info("Generated service request object")
+    logging.info(service_request_object)
+
+    return service_request_object
+
+
+def get_service_request_string(service_request_object):
+    """Return a string representation of a service request object."""
+
+    # A string template for the output format.
+    service_request_template = """
+    Service Request:
+
+    Location: {location}
+    Latitude: {latitude}
+    Longitude: {longitude}
+    Severity: {severity}
+    Category: {category}
+
+    Description: {description}
+
+    Note: If this is an emergency, please call 911. For reporting an abandoned vehicle or an illegally parked vehicle, please call the Syracuse Police Ordinance at 315-448-8650. For all non-emergencies and service requests, call (315) 448-CITY (2489). The category chosen for this request is {category}.
+    """
+
+    return service_request_template.format(**service_request_object)
+
 
 def streamlit_app():
     """Launch a Streamlit app to generate service requests from complaints."""
+
+    # Initialize state variables
     service_request = None
     complaint = None
+
+    # Get input from user
     complaint = st.text_input(
         "Service Request Description",
         value="",
@@ -218,7 +235,8 @@ def streamlit_app():
     )
 
     if complaint:
-        service_request = generate_service_request(complaint)
+        service_request_object = generate_service_request_object(complaint)
+        service_request = get_service_request_string(service_request_object)
 
     if service_request:
         st.text_area(
