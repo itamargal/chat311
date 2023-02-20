@@ -7,27 +7,17 @@ A simple app to generate 311 service requests using OpenAI.
 NOTE: Generate an OpenAI API key and export it to the OPENAI_API_KEY environment variable.
 """
 
+# 3rd Party Libraries
 import openai
 import streamlit as st
+import pandas as pd
+
+# Standard Libraries
+import logging
 
 
-def generate_service_request(complaint):
+def generate_service_request_object(complaint):
     """Generate a service request from a complaint string."""
-
-    # A string template for the output format.
-    service_request_template = """
-    Service Request:
-
-    Location: {location}
-    Latitude: {latitude}
-    Longitude: {longitude}
-    Severity: {severity}
-    Category: {category}
-
-    Description: {description}
-
-    Note: If this is an emergency, please call 911. For reporting an abandoned vehicle or an illegally parked vehicle, please call the Syracuse Police Ordinance at 315-448-8650. For all non-emergencies and service requests, call (315) 448-CITY (2489). The category chosen for this request is {category}.
-    """
 
     # A list of request categories
     request_categories = [
@@ -172,29 +162,63 @@ def generate_service_request(complaint):
     )
     coordinates = response.choices[0].text.strip()
 
-    # print(category)
-    # print(severity)
-    # print(description)
-    # print(location)
-    # print(coordinates)
+    # Log the results from OpenAI
+    logging.info(f"category: {category}")
+    logging.info(f"severity: {severity}")
+    logging.info(f"description: {description}")
+    logging.info(f"location: {location}")
+    logging.info(f"coordinates: {coordinates}")
 
+    # Extract the latitude and longitude from the location string
     latitude, longitude = [_.strip() for _ in coordinates.split(",")]
-    # print(latitude)
-    # print(longitude)
+    logging.info(f"latitude: {latitude}")
+    logging.info(f"longitude: {longitude}")
 
-    return service_request_template.format(
-        category=category,
-        severity=severity,
-        description=description,
-        location=location,
-        latitude=latitude,
-        longitude=longitude,
-    )
+    # Create a service request object
+    service_request_object = {
+        "category": category,
+        "severity": severity,
+        "description": description,
+        "location": location,
+        "latitude": latitude,
+        "longitude": longitude,
+    }
+
+    logging.info("Generated service request object")
+    logging.info(service_request_object)
+
+    return service_request_object
+
+
+def get_service_request_string(service_request_object):
+    """Return a string representation of a service request object."""
+
+    # A string template for the output format.
+    service_request_template = """
+    Service Request:
+
+    Location: {location}
+    Latitude: {latitude}
+    Longitude: {longitude}
+    Severity: {severity}
+    Category: {category}
+
+    Description: {description}
+
+    Note: If this is an emergency, please call 911. For reporting an abandoned vehicle or an illegally parked vehicle, please call the Syracuse Police Ordinance at 315-448-8650. For all non-emergencies and service requests, call (315) 448-CITY (2489). The category chosen for this request is {category}.
+    """
+
+    return service_request_template.format(**service_request_object)
+
 
 def streamlit_app():
     """Launch a Streamlit app to generate service requests from complaints."""
+
+    # Initialize state variables
     service_request = None
     complaint = None
+
+    # Get input from user
     complaint = st.text_input(
         "Service Request Description",
         value="",
@@ -212,7 +236,8 @@ def streamlit_app():
     )
 
     if complaint:
-        service_request = generate_service_request(complaint)
+        service_request_object = generate_service_request_object(complaint)
+        service_request = get_service_request_string(service_request_object)
 
     if service_request:
         st.text_area(
@@ -229,6 +254,11 @@ def streamlit_app():
             disabled=False,
             label_visibility="visible",
         )
+
+        latitute = float(service_request_object["latitude"])
+        longitude = float(service_request_object["longitude"])
+        df = pd.DataFrame([[latitute, longitude]], columns=['lat', 'lon'])
+        st.map(df)
 
 if __name__=="__main__":
     streamlit_app()
