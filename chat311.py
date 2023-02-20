@@ -13,6 +13,7 @@ import streamlit as st
 import pandas as pd
 
 # Standard Libraries
+import csv
 import logging
 
 
@@ -240,6 +241,8 @@ def streamlit_app():
         service_request = get_service_request_string(service_request_object)
 
     if service_request:
+
+        # Display service request
         st.text_area(
             label="Service Request",
             value=service_request,
@@ -255,20 +258,17 @@ def streamlit_app():
             label_visibility="visible",
         )
 
+        # Display location on map
         latitute = float(service_request_object["latitude"])
         longitude = float(service_request_object["longitude"])
         df = pd.DataFrame([[latitute, longitude]], columns=['lat', 'lon'])
         st.map(df)
 
-        historic_data = pd.read_csv('result.csv')
-        location = str(service_request_object["location"])
-        severity = str(service_request_object["severity"])
-        latitute = float(service_request_object["latitude"])
-        longitude = float(service_request_object["longitude"])
-        category = str(service_request_object["category"])
-        data_frame = pd.DataFrame([[location,severity,latitute, longitude,category]], columns=['location','severity','lat', 'lon','category'])
-        updated_df = historic_data.append(data_frame,ignore_index=True) 
-        updated_df.to_csv('result.csv', index=False)  
+        # Log results to csv file
+        fieldnames = ( "complaint", "description", "category", "severity", "location", "latitude", "longitude")
+        with open("result.csv", "a") as csv_file:
+            csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            csv_writer.writerow({"complaint": complaint, **service_request_object})
 
 if __name__=="__main__":
     streamlit_app()
