@@ -260,5 +260,15 @@ def streamlit_app():
         df = pd.DataFrame([[latitute, longitude]], columns=['lat', 'lon'])
         st.map(df)
 
+        historic_data = pd.read_csv('result.csv')
+        location = str(service_request_object["location"])
+        severity = str(service_request_object["severity"])
+        latitute = float(service_request_object["latitude"])
+        longitude = float(service_request_object["longitude"])
+        category = str(service_request_object["category"])
+        data_frame = pd.DataFrame([[location,severity,latitute, longitude,category]], columns=['location','severity','lat', 'lon','category'])
+        updated_df = historic_data.append(data_frame,ignore_index=True) 
+        updated_df.to_csv('result.csv', index=False)  
+
 if __name__=="__main__":
     streamlit_app()
