@@ -10,6 +10,7 @@ NOTE: Generate an OpenAI API key and export it to the OPENAI_API_KEY environment
 # 3rd Party Libraries
 import openai
 import streamlit as st
+import pandas as pd
 
 # Standard Libraries
 import logging
@@ -253,6 +254,11 @@ def streamlit_app():
             disabled=False,
             label_visibility="visible",
         )
+
+        latitute = float(service_request_object["latitude"])
+        longitude = float(service_request_object["longitude"])
+        df = pd.DataFrame([[latitute, longitude]], columns=['lat', 'lon'])
+        st.map(df)
 
 if __name__=="__main__":
     streamlit_app()
