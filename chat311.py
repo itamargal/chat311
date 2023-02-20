@@ -7,8 +7,12 @@ A simple app to generate 311 service requests using OpenAI.
 NOTE: Generate an OpenAI API key and export it to the OPENAI_API_KEY environment variable.
 """
 
+# 3rd Party Libraries
 import openai
 import streamlit as st
+
+# Standard Libraries
+import logging
 
 
 def generate_service_request(complaint):
@@ -172,15 +176,17 @@ def generate_service_request(complaint):
     )
     coordinates = response.choices[0].text.strip()
 
-    # print(category)
-    # print(severity)
-    # print(description)
-    # print(location)
-    # print(coordinates)
+    # Log the results from OpenAI
+    logging.info(f"category: {category}")
+    logging.info(f"severity: {severity}")
+    logging.info(f"description: {description}")
+    logging.info(f"location: {location}")
+    logging.info(f"coordinates: {coordinates}")
 
+    # Extract the latitude and longitude from the location string
     latitude, longitude = [_.strip() for _ in coordinates.split(",")]
-    # print(latitude)
-    # print(longitude)
+    logging.info(f"latitude: {latitude}")
+    logging.info(f"longitude: {longitude}")
 
     return service_request_template.format(
         category=category,
