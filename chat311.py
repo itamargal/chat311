@@ -26,7 +26,7 @@ def generate_service_request(complaint):
 
     Description: {description}
 
-    Note: If this is an emergency, please call 911. For reporting an abandoned vehicle or an illegally parked vehicle, please call the Syracuse Police Ordinance at 315-448-8650. The category chosen for this request is Street Lights as it pertains to a broken street light.
+    Note: If this is an emergency, please call 911. For reporting an abandoned vehicle or an illegally parked vehicle, please call the Syracuse Police Ordinance at 315-448-8650. For all non-emergencies and service requests, call (315) 448-CITY (2489). The category chosen for this request is {category}.
     """
 
     # A list of request categories
