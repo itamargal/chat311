@@ -14,6 +14,7 @@ import pandas as pd
 
 # Standard Libraries
 import csv
+from datetime import datetime, timezone
 import logging
 
 
@@ -183,6 +184,7 @@ def generate_service_request_object(complaint):
         "location": location,
         "latitude": latitude,
         "longitude": longitude,
+        "created_datetime": datetime.now(timezone.utc).isoformat(),
     }
 
     logging.info("Generated service request object")
@@ -265,10 +267,20 @@ def streamlit_app():
         st.map(df)
 
         # Log results to csv file
-        fieldnames = ( "complaint", "description", "category", "severity", "location", "latitude", "longitude")
+        fieldnames = (
+            "complaint",
+            "description",
+            "category",
+            "severity",
+            "location",
+            "latitude",
+            "longitude",
+            "created_datetime",
+        )
+        record = { key: value for key, value in service_request_object.items() if key in fieldnames }
         with open("result.csv", "a") as csv_file:
             csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-            csv_writer.writerow({"complaint": complaint, **service_request_object})
+            csv_writer.writerow({"complaint": complaint, **record})
 
 if __name__=="__main__":
     streamlit_app()
