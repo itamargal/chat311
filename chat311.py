@@ -315,7 +315,7 @@ def get_chat311_config():
     return chat311_config
 
 
-def streamlit_app():
+def streamlit_app(csv_output_filename=False):
     """Launch a Streamlit app to generate service requests from complaints."""
 
     # Load configuration
@@ -378,20 +378,21 @@ def streamlit_app():
             st.warning("Unable to display location on map")
 
         # Log results to csv file
-        fieldnames = (
-            "complaint",
-            "description",
-            "category",
-            "severity",
-            "location",
-            "latitude",
-            "longitude",
-            "created_datetime",
-        )
-        record = { key: value for key, value in service_request_object.items() if key in fieldnames }
-        with open("result.csv", "a", encoding="utf-8") as csv_file:
-            csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-            csv_writer.writerow(record)
+        if csv_output_filename:
+            fieldnames = (
+                "complaint",
+                "description",
+                "category",
+                "severity",
+                "location",
+                "latitude",
+                "longitude",
+                "created_datetime",
+            )
+            record = { key: value for key, value in service_request_object.items() if key in fieldnames }
+            with open(csv_output_filename, "a", encoding="utf-8") as csv_file:
+                csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+                csv_writer.writerow(record)
 
         # Write results to database
         write_to_database(service_request_object, chat311_config)
