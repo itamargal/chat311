@@ -5,18 +5,27 @@
 A simple app to generate 311 service requests using OpenAI.
 
 NOTE: Generate an OpenAI API key and export it to the OPENAI_API_KEY environment variable.
+
+You must export the following variables to your environment in order to write to the database:
+
+CHAT311_HOSTNAME
+CHAT311_DATABASE
+CHAT311_USERNAME
+CHAT311_PASSWORD
 """
 
-# 3rd Party Libraries
-import openai
-import streamlit as st
-import pandas as pd
-
 # Standard Libraries
-import csv
 from datetime import datetime, timezone
+import csv
 import logging
+import os
 
+# 3rd Party Libraries
+from pymysql.cursors import DictCursor
+import openai
+import pandas as pd
+import pymysql
+import streamlit as st
 
 def generate_service_request_object(complaint):
     """Generate a service request from a complaint string."""
@@ -165,19 +174,20 @@ def generate_service_request_object(complaint):
     coordinates = response.choices[0].text.strip()
 
     # Log the results from OpenAI
-    logging.info(f"category: {category}")
-    logging.info(f"severity: {severity}")
-    logging.info(f"description: {description}")
-    logging.info(f"location: {location}")
-    logging.info(f"coordinates: {coordinates}")
+    logging.info("category: %s", category)
+    logging.info("severity: %s", severity)
+    logging.info("description: %s", description)
+    logging.info("location: %s", location)
+    logging.info("coordinates: %s", coordinates)
 
     # Extract the latitude and longitude from the location string
     latitude, longitude = [_.strip() for _ in coordinates.split(",")]
-    logging.info(f"latitude: {latitude}")
-    logging.info(f"longitude: {longitude}")
+    logging.info("latitude: %s", latitude)
+    logging.info("longitude: %s", longitude)
 
     # Create a service request object
     service_request_object = {
+        "complaint": complaint,
         "category": category,
         "severity": severity,
         "description": description,
@@ -212,6 +222,57 @@ def get_service_request_string(service_request_object):
     """
 
     return service_request_template.format(**service_request_object)
+
+
+def write_to_database(service_request_object):
+    """Write a service request object to a database."""
+
+    # Create a database connection
+    connection = pymysql.connect(
+        host     = os.getenv("CHAT311_HOSTNAME"),
+        user     = os.getenv("CHAT311_USERNAME"),
+        passwd   = os.getenv("CHAT311_PASSWORD"),
+        db       = os.getenv("CHAT311_DATABASE"),
+        ssl      = {
+            "ca": "/etc/ssl/cert.pem"
+        },
+        ssl_verify_cert = True,
+    )
+
+    # Create a cursor
+    cursor = DictCursor(connection)
+
+    # Create a table if it doesn't already exist
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS service_requests (
+            id INTEGER AUTO_INCREMENT PRIMARY KEY,
+            complaint TEXT,
+            category TEXT,
+            severity TEXT,
+            description TEXT,
+            location TEXT,
+            latitude TEXT,
+            longitude TEXT,
+            created_datetime TEXT
+        );
+        """
+    )
+
+    # Insert the service request object into the database
+    cursor.execute(
+        """
+        INSERT INTO service_requests (complaint, category, severity, description, location, latitude, longitude, created_datetime)
+        VALUES (%(complaint)s, %(category)s, %(severity)s, %(description)s, %(location)s, %(latitude)s, %(longitude)s, %(created_datetime)s)
+        """,
+        service_request_object,
+    )
+
+    # Commit the changes
+    connection.commit()
+
+    # Close the database connection
+    connection.close()
 
 
 def streamlit_app():
@@ -280,7 +341,11 @@ def streamlit_app():
         record = { key: value for key, value in service_request_object.items() if key in fieldnames }
         with open("result.csv", "a") as csv_file:
             csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-            csv_writer.writerow({"complaint": complaint, **record})
+            csv_writer.writerow(record)
+
+        # Write results to database
+        write_to_database(service_request_object)
+
 
 if __name__=="__main__":
     streamlit_app()
