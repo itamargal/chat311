@@ -27,6 +27,7 @@ import pandas as pd
 import pymysql
 import streamlit as st
 
+
 def generate_service_request_object(complaint):
     """Generate a service request from a complaint string."""
 
@@ -224,15 +225,15 @@ def get_service_request_string(service_request_object):
     return service_request_template.format(**service_request_object)
 
 
-def write_to_database(service_request_object):
+def write_to_database(service_request_object, chat311_config):
     """Write a service request object to a database."""
 
     # Create a database connection
     connection = pymysql.connect(
-        host     = os.getenv("CHAT311_HOSTNAME"),
-        user     = os.getenv("CHAT311_USERNAME"),
-        passwd   = os.getenv("CHAT311_PASSWORD"),
-        db       = os.getenv("CHAT311_DATABASE"),
+        host     = chat311_config["CHAT311_HOSTNAME"],
+        user     = chat311_config["CHAT311_USERNAME"],
+        passwd   = chat311_config["CHAT311_PASSWORD"],
+        db       = chat311_config["CHAT311_DATABASE"],
         ssl      = {
             "ca": "/etc/ssl/cert.pem"
         },
@@ -275,8 +276,53 @@ def write_to_database(service_request_object):
     connection.close()
 
 
+def get_chat311_config():
+    """Return a dictionary of configuration parameters."""
+
+    # List of configuration parameters / environment variables
+    config_params = [
+        "OPENAI_API_KEY",
+        "CHAT311_HOSTNAME",
+        "CHAT311_DATABASE",
+        "CHAT311_USERNAME",
+        "CHAT311_PASSWORD",
+    ]
+
+    # Load configuration from st.secrets (secrets.toml) or shell environment
+
+    # Load configuration from st.secrets (secrets.toml)
+    try:
+        chat311_config = {param: st.secrets[param] for param in config_params}
+        logging.info("Loaded configuration from st.secrets (secrets.toml)")
+    except KeyError as error:
+        logging.warning("Variable missing from st.secrets (secrets.toml): %s", error)
+        logging.warning("Unable to load configuration from st.secrets (secrets.toml)")
+        chat311_config = None
+
+    # Load configuration from shell environment if not already loaded
+    if not chat311_config:
+        try:
+            chat311_config = {param: os.environ[param] for param in config_params}
+            logging.info("Loaded configuration from shell environment")
+        except KeyError as error:
+            logging.warning("Variable missing from shell environment: %s", error)
+            logging.warning("Unable to load configuration from shell environment")
+            chat311_config = None
+
+    if not chat311_config:
+        logging.warning("Unable to load configuration from st.secrets (secrets.toml) or shell environment")
+
+    return chat311_config
+
+
 def streamlit_app():
     """Launch a Streamlit app to generate service requests from complaints."""
+
+    # Load configuration
+    try:
+        chat311_config
+    except NameError:
+        chat311_config = get_chat311_config()
 
     # Initialize state variables
     service_request = None
@@ -321,11 +367,15 @@ def streamlit_app():
             label_visibility="visible",
         )
 
-        # Display location on map
-        latitute = float(service_request_object["latitude"])
-        longitude = float(service_request_object["longitude"])
-        df = pd.DataFrame([[latitute, longitude]], columns=['lat', 'lon'])
-        st.map(df)
+        # Display location on map or display warning if location is not available
+        try:
+            latitute = float(service_request_object["latitude"])
+            longitude = float(service_request_object["longitude"])
+            df = pd.DataFrame([[latitute, longitude]], columns=['lat', 'lon'])
+            st.map(df)
+        except ValueError:
+            logging.warning("Unable to display location on map")
+            st.warning("Unable to display location on map")
 
         # Log results to csv file
         fieldnames = (
@@ -339,12 +389,12 @@ def streamlit_app():
             "created_datetime",
         )
         record = { key: value for key, value in service_request_object.items() if key in fieldnames }
-        with open("result.csv", "a") as csv_file:
+        with open("result.csv", "a", encoding="utf-8") as csv_file:
             csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
             csv_writer.writerow(record)
 
         # Write results to database
-        write_to_database(service_request_object)
+        write_to_database(service_request_object, chat311_config)
 
 
 if __name__=="__main__":
