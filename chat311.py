@@ -25,10 +25,38 @@ from pymysql.cursors import DictCursor
 import openai
 import pandas as pd
 import pymysql
+import requests
 import streamlit as st
 
 
-def generate_service_request_object(complaint):
+def geocode(address, chat311_config=None):
+    """Geocode an address using the HERE API."""
+
+    # Load config if not provided
+    if not chat311_config:
+        chat311_config = get_chat311_config()
+
+    # Get parameters for geocoding service
+    here_api_key = chat311_config["HERE_API_KEY"]
+    url = "https://geocode.search.hereapi.com/v1/geocode"
+    querystring = {"q": address, "apiKey": here_api_key}
+
+    # Submit geocoding request
+    response = requests.request("GET", url, headers={}, params=querystring)
+    logging.debug("Geocoding address: %s", address)
+    logging.debug(response.text)
+
+    # Parse response, get first match, and extract coordinates
+    try:
+        top_result = response.json()["items"][0]
+        lat, lng = top_result["position"]["lat"], top_result["position"]["lng"]
+        coordinates = {"lat": lat, "lng": lng}
+    except Exception as error:
+        logging.warning(error)
+        coordinates = None
+
+    return coordinates
+
     """Generate a service request from a complaint string."""
 
     # A list of request categories
