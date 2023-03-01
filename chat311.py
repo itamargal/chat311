@@ -144,6 +144,18 @@ def generate_service_request_object(complaint, chat311_config=None):
     coordinates_prompt_template = """Based on the complaint: "{complaint}", print the location of the issue (in latitude/longitude format)."""
     coordinates_prompt = coordinates_prompt_template.format(complaint=complaint)
 
+    # Create prompt to generate request location address
+    address_prompt_template = """Based on the complaint: "{complaint}", print the address of the issue (in street address format)."""
+    address_prompt = address_prompt_template.format(complaint=complaint)
+
+    # Create prompt to generate request location name
+    location_name_prompt_template = """
+        Based on the complaint: "{complaint}", print the name of the location where the issue occurs (on a single line).
+        This could be the name of a park, school, or other location.
+        The output should only include the location name, not a description of the issue.
+    """
+    location_name_prompt = location_name_prompt_template.format(complaint=complaint)
+
     # Get the category
     response = openai.Completion.create(
             engine="text-davinci-003",
@@ -194,6 +206,34 @@ def generate_service_request_object(complaint, chat311_config=None):
     )
     location = response.choices[0].text.strip()
 
+    # Get the location name
+    response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=location_name_prompt,
+            # temperature=0.5,
+            max_tokens=4097 - len(location_name_prompt),
+            # top_p=1,
+            # frequency_penalty=0.2,
+            # presence_penalty=0,
+            # stop=["\"\"\""],
+            stream=False,
+    )
+    location_name = response.choices[0].text.strip()
+
+    # Get the location address
+    response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=address_prompt,
+            # temperature=0.5,
+            max_tokens=4097 - len(address_prompt),
+            # top_p=1,
+            # frequency_penalty=0.2,
+            # presence_penalty=0,
+            # stop=["\"\"\""],
+            stream=False,
+    )
+    address = response.choices[0].text.strip()
+
     # Get the lat/lon coordinates
     response = openai.Completion.create(
             engine="text-davinci-003",
@@ -233,6 +273,8 @@ def generate_service_request_object(complaint, chat311_config=None):
         "severity": severity,
         "description": description,
         "location": location,
+        "location_name": location_name,
+        "address": address,
         "latitude": latitude,
         "longitude": longitude,
         "created_datetime": datetime.now(timezone.utc).isoformat(),
