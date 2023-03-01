@@ -57,6 +57,8 @@ def geocode(address, chat311_config=None):
 
     return coordinates
 
+
+def generate_service_request_object(complaint, chat311_config=None):
     """Generate a service request from a complaint string."""
 
     # A list of request categories
@@ -214,6 +216,12 @@ def geocode(address, chat311_config=None):
     logging.info("latitude: %s", latitude)
     logging.info("longitude: %s", longitude)
 
+
+    # Get the latitude and longitude from the location string using a geocoding API
+    location_data = geocode(location)
+    logging.info("location_data: %s", location_data)
+    lat, lng = location_data["lat"], location_data["lng"]
+
     # Create a service request object
     service_request_object = {
         "complaint": complaint,
@@ -224,6 +232,8 @@ def geocode(address, chat311_config=None):
         "latitude": latitude,
         "longitude": longitude,
         "created_datetime": datetime.now(timezone.utc).isoformat(),
+        "geocode_lat": lat,
+        "geocode_lng": lng,
     }
 
     logging.info("Generated service request object")
@@ -314,6 +324,7 @@ def get_chat311_config():
         "CHAT311_DATABASE",
         "CHAT311_USERNAME",
         "CHAT311_PASSWORD",
+        "HERE_API_KEY",
     ]
 
     # Load configuration from st.secrets (secrets.toml) or shell environment
@@ -397,9 +408,9 @@ def streamlit_app(csv_output_filename=False):
 
         # Display location on map or display warning if location is not available
         try:
-            latitute = float(service_request_object["latitude"])
-            longitude = float(service_request_object["longitude"])
-            df = pd.DataFrame([[latitute, longitude]], columns=['lat', 'lon'])
+            latitude = float(service_request_object["geocode_lat"])
+            longitude = float(service_request_object["geocode_lng"])
+            df = pd.DataFrame([[latitude, longitude]], columns=['lat', 'lon'])
             st.map(df)
         except ValueError:
             logging.warning("Unable to display location on map")
