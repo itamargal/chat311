@@ -133,7 +133,11 @@ def generate_service_request_object(complaint, chat311_config=None):
     description_prompt = description_prompt_template.format(complaint=complaint)
 
     # Create prompt to generate request location description
-    location_prompt_template = """Based on the complaint: "{complaint}", describe the location of the issue (in a single sentence)."""
+    location_prompt_template = """
+        Based on the complaint: "{complaint}", describe the location where the issue occurs (on a single line).
+        The output should only include the location, not a description of the issue.
+        The format should be: "Street Name, City, State, Zip Code" or "Location Name, City, State"
+    """
     location_prompt = location_prompt_template.format(complaint=complaint)
 
     # Create prompt to generate request location coordinates
@@ -181,7 +185,7 @@ def generate_service_request_object(complaint, chat311_config=None):
             engine="text-davinci-003",
             prompt=location_prompt,
             # temperature=0.5,
-            max_tokens=4097 - len(description_prompt),
+            max_tokens=4097 - len(location_prompt),
             # top_p=1,
             # frequency_penalty=0.2,
             # presence_penalty=0,
