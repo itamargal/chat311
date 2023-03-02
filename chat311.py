@@ -25,10 +25,40 @@ from pymysql.cursors import DictCursor
 import openai
 import pandas as pd
 import pymysql
+import requests
 import streamlit as st
 
 
-def generate_service_request_object(complaint):
+def geocode(address, chat311_config=None):
+    """Geocode an address using the HERE API."""
+
+    # Load config if not provided
+    if not chat311_config:
+        chat311_config = get_chat311_config()
+
+    # Get parameters for geocoding service
+    here_api_key = chat311_config["HERE_API_KEY"]
+    url = "https://geocode.search.hereapi.com/v1/geocode"
+    querystring = {"q": address, "apiKey": here_api_key}
+
+    # Submit geocoding request
+    response = requests.request("GET", url, headers={}, params=querystring)
+    logging.debug("Geocoding address: %s", address)
+    logging.debug(response.text)
+
+    # Parse response, get first match, and extract coordinates
+    try:
+        top_result = response.json()["items"][0]
+        lat, lng = top_result["position"]["lat"], top_result["position"]["lng"]
+        coordinates = {"lat": lat, "lng": lng}
+    except Exception as error:
+        logging.warning(error)
+        coordinates = None
+
+    return coordinates
+
+
+def generate_service_request_object(complaint, chat311_config=None):
     """Generate a service request from a complaint string."""
 
     # A list of request categories
@@ -103,12 +133,28 @@ def generate_service_request_object(complaint):
     description_prompt = description_prompt_template.format(complaint=complaint)
 
     # Create prompt to generate request location description
-    location_prompt_template = """Based on the complaint: "{complaint}", describe the location of the issue (in a single sentence)."""
+    location_prompt_template = """
+        Based on the complaint: "{complaint}", describe the location where the issue occurs (on a single line).
+        The output should only include the location, not a description of the issue.
+        The format should be: "Street Name, City, State, Zip Code" or "Location Name, City, State"
+    """
     location_prompt = location_prompt_template.format(complaint=complaint)
 
     # Create prompt to generate request location coordinates
     coordinates_prompt_template = """Based on the complaint: "{complaint}", print the location of the issue (in latitude/longitude format)."""
     coordinates_prompt = coordinates_prompt_template.format(complaint=complaint)
+
+    # Create prompt to generate request location address
+    address_prompt_template = """Based on the complaint: "{complaint}", print the address of the issue (in street address format)."""
+    address_prompt = address_prompt_template.format(complaint=complaint)
+
+    # Create prompt to generate request location name
+    location_name_prompt_template = """
+        Based on the complaint: "{complaint}", print the name of the location where the issue occurs (on a single line).
+        This could be the name of a park, school, or other location.
+        The output should only include the location name, not a description of the issue.
+    """
+    location_name_prompt = location_name_prompt_template.format(complaint=complaint)
 
     # Get the category
     response = openai.Completion.create(
@@ -151,7 +197,7 @@ def generate_service_request_object(complaint):
             engine="text-davinci-003",
             prompt=location_prompt,
             # temperature=0.5,
-            max_tokens=4097 - len(description_prompt),
+            max_tokens=4097 - len(location_prompt),
             # top_p=1,
             # frequency_penalty=0.2,
             # presence_penalty=0,
@@ -159,6 +205,34 @@ def generate_service_request_object(complaint):
             stream=False,
     )
     location = response.choices[0].text.strip()
+
+    # Get the location name
+    response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=location_name_prompt,
+            # temperature=0.5,
+            max_tokens=4097 - len(location_name_prompt),
+            # top_p=1,
+            # frequency_penalty=0.2,
+            # presence_penalty=0,
+            # stop=["\"\"\""],
+            stream=False,
+    )
+    location_name = response.choices[0].text.strip()
+
+    # Get the location address
+    response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=address_prompt,
+            # temperature=0.5,
+            max_tokens=4097 - len(address_prompt),
+            # top_p=1,
+            # frequency_penalty=0.2,
+            # presence_penalty=0,
+            # stop=["\"\"\""],
+            stream=False,
+    )
+    address = response.choices[0].text.strip()
 
     # Get the lat/lon coordinates
     response = openai.Completion.create(
@@ -186,6 +260,12 @@ def generate_service_request_object(complaint):
     logging.info("latitude: %s", latitude)
     logging.info("longitude: %s", longitude)
 
+
+    # Get the latitude and longitude from the location string using a geocoding API
+    location_data = geocode(location)
+    logging.info("location_data: %s", location_data)
+    lat, lng = location_data["lat"], location_data["lng"]
+
     # Create a service request object
     service_request_object = {
         "complaint": complaint,
@@ -193,9 +273,13 @@ def generate_service_request_object(complaint):
         "severity": severity,
         "description": description,
         "location": location,
+        "location_name": location_name,
+        "address": address,
         "latitude": latitude,
         "longitude": longitude,
         "created_datetime": datetime.now(timezone.utc).isoformat(),
+        "geocode_lat": lat,
+        "geocode_lng": lng,
     }
 
     logging.info("Generated service request object")
@@ -286,6 +370,7 @@ def get_chat311_config():
         "CHAT311_DATABASE",
         "CHAT311_USERNAME",
         "CHAT311_PASSWORD",
+        "HERE_API_KEY",
     ]
 
     # Load configuration from st.secrets (secrets.toml) or shell environment
@@ -369,9 +454,9 @@ def streamlit_app(csv_output_filename=False):
 
         # Display location on map or display warning if location is not available
         try:
-            latitute = float(service_request_object["latitude"])
-            longitude = float(service_request_object["longitude"])
-            df = pd.DataFrame([[latitute, longitude]], columns=['lat', 'lon'])
+            latitude = float(service_request_object["geocode_lat"])
+            longitude = float(service_request_object["geocode_lng"])
+            df = pd.DataFrame([[latitude, longitude]], columns=['lat', 'lon'])
             st.map(df)
         except ValueError:
             logging.warning("Unable to display location on map")
